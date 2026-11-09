@@ -8,7 +8,7 @@ import { FernetCipher, KEY_FILE_PATH, VAULT_DIR_PATH, ensureKeyAndVault } from '
 import { addGeminiKey, executeChatTurn, getGeminiConfig, getGeminiKeyInfo, removeGeminiKey, renameGeminiKey, revealGeminiKey, selectGeminiApi, updateGeminiKeyModel } from './server/gemini';
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const dailyGoogleLimit = Number(process.env.GOOGLE_DAILY_LIMIT || 60);
 let googleRequestsToday = 0;
 let usageResetAt = getNextLocalDay();
