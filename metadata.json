@@ -1,0 +1,6 @@
+{
+  "name": "nickbee",
+  "description": "nickbee - University AI Academic & Developer Hub with interactive multiple-choice quiz engine, bulk syllabus photo analyzer, beekeeping honey-gold aesthetics, Fernet AES-128 security, and encrypted session logs.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
