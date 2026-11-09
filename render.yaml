@@ -1,6 +1,10 @@
 services:
   - type: web
-    name: nickbee-uni-app
+    name: nickbee_uni_app
     runtime: node
     buildCommand: npm install && npm run build
     startCommand: npm start
+    healthCheckPath: /api/status
+    envVars:
+      - key: NODE_ENV
+        value: production
