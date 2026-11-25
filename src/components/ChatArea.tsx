@@ -855,7 +855,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               />
             </div>
             <span className="font-semibold text-amber-200">
-              {lang === 'el' ? '🐝 Ai επεξεργάζεται την ύλη και απαντάει...' : '🐝 Ai analyzing syllabus & computing response...'}
+              {lang === 'el' ? '🐝 Ai επεξεργάζεται την ύλη — σε μεγάλες αναλύσεις μπορεί να χρειαστούν λίγα λεπτά...' : '🐝 Ai is analyzing your material — large requests may take a few minutes...'}
             </span>
           </div>
         </div>

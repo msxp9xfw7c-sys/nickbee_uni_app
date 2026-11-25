@@ -28,6 +28,38 @@ interface ConversationTab {
   requestStartedAt: number | null;
 }
 
+interface ChatResponse {
+  text?: string;
+  groundingSources?: ChatMessage['groundingSources'];
+  modelUsed?: string;
+  apiKeyFingerprint?: string;
+}
+
+async function requestChat(payload: Record<string, unknown>): Promise<ChatResponse> {
+  const createResponse = await fetch('/api/chat/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const created = await createResponse.json() as { jobId?: string; error?: string };
+  if (!createResponse.ok || !created.jobId) {
+    throw new Error(created.error || 'Chat request failed');
+  }
+
+  while (true) {
+    await new Promise((resolve) => window.setTimeout(resolve, 1500));
+    const response = await fetch(`/api/chat/jobs/${encodeURIComponent(created.jobId)}`);
+    const job = await response.json() as {
+      status?: 'pending' | 'completed' | 'failed';
+      result?: ChatResponse;
+      error?: string;
+    };
+    if (!response.ok) throw new Error(job.error || 'Δεν ήταν δυνατή η ανάκτηση της προόδου της ανάλυσης.');
+    if (job.status === 'completed' && job.result) return job.result;
+    if (job.status === 'failed') throw new Error(job.error || 'Chat request failed');
+  }
+}
+
 export default function App() {
   const [layoutMode, setLayoutMode] = useState<'mobile' | 'desktop' | null>(() => {
     const saved = sessionStorage.getItem('nickbee-layout-mode');
@@ -225,25 +257,12 @@ export default function App() {
           attachments: m.attachments,
         }));
 
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 60000);
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          messages: payloadMessages,
-          useSearchGrounding,
-          model: selectedModel,
-          apiKeyId: requestApiKeyId,
-        }),
+      const data = await requestChat({
+        messages: payloadMessages,
+        useSearchGrounding,
+        model: selectedModel,
+        apiKeyId: requestApiKeyId,
       });
-      window.clearTimeout(timeoutId);
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Chat request failed');
-      }
 
       const aiMessage: ChatMessage = {
         id: Math.random().toString(),
@@ -259,7 +278,7 @@ export default function App() {
       await fetchStatus();
       return data.text;
     } catch (err: any) {
-      const errMsg = err?.name === 'AbortError' ? 'Το αίτημα έληξε μετά από 60 δευτερόλεπτα.' : err.message || 'Error occurred';
+      const errMsg = err instanceof Error ? err.message : 'Error occurred';
       const errorResponse: ChatMessage = {
         id: Math.random().toString(),
         role: 'model',
@@ -293,17 +312,12 @@ export default function App() {
     setGeneratingTabs((tabs) => new Set(tabs).add(requestTabId));
     updateConversationTab(requestTabId, (current) => ({ ...current, requestStartedAt: Date.now() }));
     try {
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 60000);
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({ messages: historyWithoutOldAnswer.map(({ role, text: messageText, attachment, attachments }) => ({ role, text: messageText, attachment, attachments })), useSearchGrounding, model: selectedModel, apiKeyId: tab.apiKeyId }),
+      const data = await requestChat({
+        messages: historyWithoutOldAnswer.map(({ role, text: messageText, attachment, attachments }) => ({ role, text: messageText, attachment, attachments })),
+        useSearchGrounding,
+        model: selectedModel,
+        apiKeyId: tab.apiKeyId,
       });
-      window.clearTimeout(timeoutId);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Edit regeneration failed');
       const replacement: ChatMessage = { id: Math.random().toString(), role: 'model', text: data.text || '', groundingSources: data.groundingSources, modelUsed: data.modelUsed, apiKeyFingerprint: data.apiKeyFingerprint, timestamp: new Date().toLocaleTimeString() };
       updateConversationTab(requestTabId, (current) => ({ ...current, messages: [...historyWithoutOldAnswer, replacement] }));
     } catch (error: any) {

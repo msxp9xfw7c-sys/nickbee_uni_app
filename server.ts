@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import dns from 'dns';
+import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { FernetCipher, KEY_FILE_PATH, VAULT_DIR_PATH, ensureKeyAndVault } from './server/fernet';
 import { addGeminiKey, executeChatTurn, getGeminiConfig, getGeminiKeyInfo, removeGeminiKey, renameGeminiKey, revealGeminiKey, selectGeminiApi, updateGeminiKeyModel } from './server/gemini';
@@ -13,6 +14,15 @@ const dailyGoogleLimit = Number(process.env.GOOGLE_DAILY_LIMIT || 60);
 let googleRequestsToday = 0;
 let usageResetAt = getNextLocalDay();
 let providerRetryUntil = 0;
+type ChatJob = {
+  createdAt: number;
+  status: 'pending' | 'completed' | 'failed';
+  result?: Awaited<ReturnType<typeof executeChatTurn>>;
+  error?: string;
+};
+const chatJobs = new Map<string, ChatJob>();
+const CHAT_JOB_TTL_MS = 30 * 60 * 1000;
+const MAX_ACTIVE_CHAT_JOBS = 3;
 
 function resetProviderUsage() {
   googleRequestsToday = 0;
@@ -44,6 +54,13 @@ function getProviderUsage() {
 function registerGoogleRequest() {
   getProviderUsage();
   googleRequestsToday += 1;
+}
+
+function removeExpiredChatJobs() {
+  const expirationTime = Date.now() - CHAT_JOB_TTL_MS;
+  for (const [jobId, job] of chatJobs) {
+    if (job.createdAt < expirationTime) chatJobs.delete(jobId);
+  }
 }
 
 // Body parser configuration for handling multimodal uploads (images, audio, video, pdfs)
@@ -259,6 +276,58 @@ app.post('/api/key/generate', (req, res) => {
 // ---------------------------------------------------------
 // 2. Chat & Multimodal Execution API
 // ---------------------------------------------------------
+app.post('/api/chat/jobs', (req, res) => {
+  const { messages, model, useSearchGrounding, systemInstruction, apiIndex, apiKeyId } = req.body;
+
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'Messages array is required' });
+  }
+
+  removeExpiredChatJobs();
+  const activeJobs = [...chatJobs.values()].filter((job) => job.status === 'pending').length;
+  if (activeJobs >= MAX_ACTIVE_CHAT_JOBS) {
+    return res.status(429).json({ error: 'Υπάρχουν ήδη πολλές αναλύσεις σε εξέλιξη. Περίμενε να ολοκληρωθεί μία και δοκίμασε ξανά.' });
+  }
+
+  const jobId = crypto.randomUUID();
+  const job: ChatJob = { createdAt: Date.now(), status: 'pending' };
+  chatJobs.set(jobId, job);
+
+  void (async () => {
+    try {
+      registerGoogleRequest();
+      const result = await executeChatTurn({
+        messages,
+        model: model || getGeminiConfig().model,
+        useSearchGrounding: Boolean(useSearchGrounding),
+        systemInstruction,
+        apiIndex,
+        apiKeyId,
+      });
+      if (result.keySwitched) resetProviderUsage();
+      job.result = result;
+      job.status = 'completed';
+    } catch (error: unknown) {
+      console.error('Chat job execution error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error communicating with AI engine';
+      job.error = errorMessage.startsWith('Όλα τα Google API keys απέτυχαν')
+        ? 'Όλα τα API keys δοκιμάστηκαν και είναι προσωρινά μη διαθέσιμα λόγω ορίου ή φόρτου. Δοκίμασε ξανά σε λίγο.'
+        : errorMessage;
+      job.status = 'failed';
+    }
+  })();
+
+  res.status(202).json({ jobId });
+});
+
+app.get('/api/chat/jobs/:jobId', (req, res) => {
+  removeExpiredChatJobs();
+  const job = chatJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'Η ανάλυση δεν βρέθηκε ή έχει λήξει.' });
+
+  res.json({ status: job.status, ...(job.result ? { result: job.result } : {}), ...(job.error ? { error: job.error } : {}) });
+});
+
 app.post('/api/chat', async (req, res) => {
   try {
     const { messages, model, useSearchGrounding, systemInstruction, apiIndex, apiKeyId } = req.body;
