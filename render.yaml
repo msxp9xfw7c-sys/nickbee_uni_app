@@ -3,7 +3,7 @@ services:
     name: nickbee_uni_app
     runtime: node
     buildCommand: npm install
-    startCommand: node ./server.cjs
+    startCommand: npm start
     healthCheckPath: /api/status
     envVars:
       - key: NODE_ENV

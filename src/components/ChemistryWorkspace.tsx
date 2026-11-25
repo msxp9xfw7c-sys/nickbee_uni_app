@@ -248,8 +248,8 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
         title={`${element.atomicNumber} · ${element.name} · ${categoryLabels[category][lang]}`}
         className={`group relative flex aspect-square min-w-0 flex-col items-center justify-center rounded-lg border p-0.5 transition duration-150 hover:z-10 hover:scale-110 hover:brightness-125 ${categoryStyles[category]} ${isSelected ? 'z-10 scale-105 ring-2 ring-white/80' : ''}`}
       >
-        <span className="absolute left-0.5 top-0.5 text-[clamp(5px,1.3cqw,8px)] opacity-60">{element.atomicNumber}</span>
-        <span className="text-[clamp(7px,2.4cqw,14px)] font-black">{element.symbol}</span>
+        <span className="absolute left-1 top-0.5 text-[clamp(8px,1.3cqw,10px)] font-medium opacity-70">{element.atomicNumber}</span>
+        <span className="text-[clamp(12px,2.4cqw,17px)] font-black">{element.symbol}</span>
         <span className="hidden truncate text-[8px] opacity-70 2xl:block">{element.name}</span>
       </button>
     );
@@ -266,11 +266,11 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
         </div>
       </header>
 
-      <div role="tablist" aria-label={localized('Κλάδοι Χημείας', 'Chemistry branches')} className="flex flex-wrap gap-2">
-        <button type="button" role="tab" aria-selected={chemistryBranch === 'reactions'} onClick={() => setChemistryBranch('reactions')} className={`rounded-lg border px-3 py-2 text-xs font-bold transition ${chemistryBranch === 'reactions' ? 'border-cyan-300/40 bg-cyan-300/10 text-cyan-100' : 'border-white/10 bg-black/20 text-slate-400 hover:text-white'}`}>
+      <div role="tablist" aria-label={localized('Κλάδοι Χημείας', 'Chemistry branches')} className="flex flex-nowrap gap-2 overflow-x-auto">
+        <button type="button" role="tab" aria-selected={chemistryBranch === 'reactions'} onClick={() => setChemistryBranch('reactions')} className={`shrink-0 whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-bold transition ${chemistryBranch === 'reactions' ? 'border-cyan-300/40 bg-cyan-300/10 text-cyan-100' : 'border-white/10 bg-black/20 text-slate-400 hover:text-white'}`}>
           {localized('Ανόργανη Χημεία · Αντιδράσεις', 'Inorganic Chemistry · Reactions')}
         </button>
-        <button type="button" role="tab" aria-selected={chemistryBranch === 'organic'} onClick={() => setChemistryBranch('organic')} className={`rounded-lg border px-3 py-2 text-xs font-bold transition ${chemistryBranch === 'organic' ? 'border-emerald-300/40 bg-emerald-300/10 text-emerald-100' : 'border-white/10 bg-black/20 text-slate-400 hover:text-white'}`}>
+        <button type="button" role="tab" aria-selected={chemistryBranch === 'organic'} onClick={() => setChemistryBranch('organic')} className={`shrink-0 whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-bold transition ${chemistryBranch === 'organic' ? 'border-emerald-300/40 bg-emerald-300/10 text-emerald-100' : 'border-white/10 bg-black/20 text-slate-400 hover:text-white'}`}>
           {localized('Οργανική Χημεία', 'Organic Chemistry')}
         </button>
       </div>
@@ -282,11 +282,12 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={localized('Αναζήτηση στοιχείου…', 'Search elements…')} className="w-full max-w-56 rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 text-xs text-white outline-none focus:border-cyan-300/50" />
         </div>
         {search.trim() ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,3rem),1fr))] gap-1.5">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,3.75rem),1fr))] gap-1.5">
             {filteredElements.map(elementButton)}
           </div>
         ) : (
-          <div className="@container min-w-0 w-full pb-1">
+          <div className="min-w-0 w-full overflow-x-auto pb-1">
+            <div className="@container min-w-[42rem] lg:min-w-full">
             <div className="grid grid-cols-18 gap-0.5">
               {Array.from({ length: 7 }, (_, rowIndex) => Array.from({ length: 18 }, (_, groupIndex) => {
                 const element = byPosition.get(`${rowIndex + 1}-${groupIndex + 1}`);
@@ -300,6 +301,7 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
                   {PERIODIC_ELEMENTS.filter((element) => element.row === row).map(elementButton)}
                 </React.Fragment>
               ))}
+            </div>
             </div>
           </div>
         )}

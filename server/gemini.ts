@@ -36,6 +36,7 @@ function sanitizePlainTextMath(text: string): string {
     .trim();
 }
 let activeApiIndex = 0;
+let nextApiIndex = 0;
 const rateLimitedUntil = new Map<string, number>();
 const rateLimitReason = new Map<string, string>();
 const poolRequestTimes = new Map<string, number[]>();
@@ -48,14 +49,13 @@ function stringOrFallback(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
 }
 
-function accountIdForRecord(record: Pick<GeminiKeyRecord, 'label' | 'accountId'>): string {
-  if (record.accountId?.trim()) return record.accountId.trim().toLowerCase();
-  const prefix = record.label.trim().match(/^[a-z]+/i)?.[0];
-  return (prefix || 'default').toLowerCase();
+function accountIdForRecord(record: Pick<GeminiKeyRecord, 'accountId' | 'key'>): string {
+  return record.accountId?.trim().toLowerCase() || 'default';
 }
 
 function quotaPoolId(record: GeminiKeyRecord): string {
-  return `${accountIdForRecord(record)}:${record.provider}:${record.model}`.toLowerCase();
+  const poolOwner = record.accountId?.trim().toLowerCase() || keyFingerprint(record.key);
+  return `${poolOwner}:${record.provider}:${record.model}`.toLowerCase();
 }
 
 function getPoolUsage(poolId: string) {
@@ -150,6 +150,7 @@ export function selectGeminiApi(index: number) {
   const keys = getGeminiKeyRecords();
   if (!Number.isInteger(index) || index < 0 || index >= keys.length) throw new Error('Το API δεν βρέθηκε.');
   activeApiIndex = index;
+  nextApiIndex = index;
   rateLimitedUntil.delete(quotaPoolId(keys[index]));
   rateLimitReason.delete(quotaPoolId(keys[index]));
   return getGeminiKeyInfo();
@@ -179,6 +180,8 @@ export function removeGeminiKey(index: number) {
   rateLimitedUntil.delete(quotaPoolId(removedRecord));
   if (activeApiIndex >= keys.length) activeApiIndex = Math.max(0, keys.length - 1);
   else if (index < activeApiIndex) activeApiIndex -= 1;
+  if (index < nextApiIndex) nextApiIndex -= 1;
+  if (nextApiIndex >= keys.length) nextApiIndex = 0;
   saveGeminiKeys(keys);
   return getGeminiKeyInfo();
 }
@@ -278,9 +281,15 @@ export async function executeChatTurn({ messages, systemInstruction, model = DEF
     ? records.findIndex((record) => keyFingerprint(record.key) === apiKeyId)
     : -1;
   if (apiKeyId && boundApiIndex < 0) throw new Error('Το δεσμευμένο API key δεν βρέθηκε.');
+  const requestedApiIndex = Number.isInteger(apiIndex) && apiIndex! >= 0 && apiIndex! < records.length
+    ? apiIndex!
+    : -1;
   const preferredApiIndex = boundApiIndex >= 0
     ? boundApiIndex
-    : Number.isInteger(apiIndex) && apiIndex! >= 0 && apiIndex! < records.length ? apiIndex! : activeApiIndex;
+    : requestedApiIndex >= 0 ? requestedApiIndex : records.length ? nextApiIndex % records.length : 0;
+  if (boundApiIndex < 0 && requestedApiIndex < 0 && records.length > 0) {
+    nextApiIndex = (preferredApiIndex + 1) % records.length;
+  }
   const requestOrder = records.map((_, index) => index).sort((a, b) => Number(b === preferredApiIndex) - Number(a === preferredApiIndex));
   if (keys.length === 0) throw new Error('Δεν έχει ρυθμιστεί Google Gemini API key.');
 
@@ -330,10 +339,18 @@ export async function executeChatTurn({ messages, systemInstruction, model = DEF
       lastError = 'Δεν ήταν δυνατή η σύνδεση με το Google Gemini API.';
       continue;
     }
-    const data = await response.json() as {
+    let data: {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; groundingMetadata?: { groundingChunks?: Array<{ web?: { title?: string; uri?: string } }> } }>;
     error?: { message?: string; status?: string; code?: string };
     };
+    try {
+      data = await response.json() as typeof data;
+    } catch (error) {
+      if (response.ok) {
+        throw new Error(`Το Google Gemini API επέστρεψε μη έγκυρη απάντηση: ${error instanceof Error ? error.message : 'άγνωστο σφάλμα'}`);
+      }
+      data = {};
+    }
     if (!response.ok) {
       lastError = data.error?.message || `Το Google Gemini API επέστρεψε HTTP ${response.status}.`;
       const errorCode = data.error?.status || data.error?.code;
@@ -342,6 +359,16 @@ export async function executeChatTurn({ messages, systemInstruction, model = DEF
         const cooldownMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 60_000;
         rateLimitedUntil.set(poolId, Date.now() + cooldownMs);
         rateLimitReason.set(poolId, /quota|resource exhausted/i.test(lastError) ? 'Daily Quota' : 'RPM limit');
+        continue;
+      }
+      if (response.status === 408 || response.status >= 500) {
+        const retryAfter = Number(response.headers.get('retry-after'));
+        const cooldownMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 10_000;
+        rateLimitedUntil.set(poolId, Date.now() + cooldownMs);
+        rateLimitReason.set(poolId, 'Service Busy');
+        continue;
+      }
+      if (response.status === 401 || response.status === 403) {
         continue;
       }
       const isModelAvailabilityError = (response.status === 400 || response.status === 404)

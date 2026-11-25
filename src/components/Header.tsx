@@ -3,10 +3,10 @@ import {
   Wifi,
   WifiOff,
   Layers,
-  KeyRound,
-  FolderLock,
   Palette,
   Cpu,
+  Laptop,
+  Smartphone,
   ChevronDown,
   Check,
   GraduationCap,
@@ -19,10 +19,10 @@ interface HeaderProps {
   status: SystemStatus | null;
   activeView: 'studio';
   setActiveView: (view: 'studio') => void;
-  onOpenVault: () => void;
-  onOpenKeyModal: () => void;
   onOpenThemeModal: () => void;
   onOpenUniversityHub?: () => void;
+  layoutMode: 'mobile' | 'desktop';
+  onLayoutModeChange: (mode: 'mobile' | 'desktop') => void;
   selectedModel: string;
   activeApiKeyId?: string | null;
   onSelectModel: (modelId: string) => void;
@@ -35,10 +35,10 @@ export const Header: React.FC<HeaderProps> = ({
   status,
   activeView,
   setActiveView,
-  onOpenVault,
-  onOpenKeyModal,
   onOpenThemeModal,
   onOpenUniversityHub,
+  layoutMode,
+  onLayoutModeChange,
   selectedModel,
   activeApiKeyId,
   onSelectModel,
@@ -48,7 +48,6 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const isOnline = status?.online ?? true;
-  const keyValid = status?.keyFile?.valid ?? false;
   const [countdownSeconds, setCountdownSeconds] = useState(0);
   const activeApi = status?.apiKeys?.find((api) => api.fingerprint === activeApiKeyId) || status?.apiKeys?.find((api) => api.active);
 
@@ -75,10 +74,11 @@ export const Header: React.FC<HeaderProps> = ({
     <header
       id="mac-header"
       className={`border-b ${currentTheme.classes.borderPrimary} ${currentTheme.classes.bgPanel} text-slate-100 backdrop-blur-md sticky top-0 z-30 select-none shadow-md shadow-black/40`}
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-2 sm:gap-3">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 sm:gap-3">
         {/* Left: official nickbee Bee Logo */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex w-full items-center gap-2 sm:w-auto sm:gap-3">
           {/* Official nickbee Logo with uploaded Bee Avatar */}
           <div className="flex items-center gap-2.5">
             <div className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-amber-400/80 shadow-md shadow-amber-500/30 shrink-0 bg-slate-900">
@@ -103,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </h1>
 
                 <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${currentTheme.classes.badgeBg} ${currentTheme.classes.badgeText} border ${currentTheme.classes.borderMuted} flex items-center gap-1`}
+                  className={`hidden sm:flex text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${currentTheme.classes.badgeBg} ${currentTheme.classes.badgeText} border ${currentTheme.classes.borderMuted} items-center gap-1`}
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                   AES-128
@@ -114,13 +114,13 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Center/Right: Model Selector, Academic Hub, Theme Customizer & System Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex w-full flex-nowrap items-center justify-between gap-1.5 sm:w-auto sm:justify-end sm:gap-2">
           {/* University Academic Hub Button */}
           {onOpenUniversityHub && (
             <button
               id="btn-open-university-hub"
               onClick={onOpenUniversityHub}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25 hover:border-amber-400 shadow-xs`}
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2 py-1.5 text-xs font-mono font-bold text-amber-300 shadow-xs transition-all hover:border-amber-400 hover:bg-amber-500/25 sm:px-2.5 sm:py-1`}
               title={lang === 'el' ? 'Πανεπιστήμιο: Διαχείριση Ύλης & Κουίζ' : 'University Syllabus & Quiz Hub'}
             >
               <GraduationCap className="w-3.5 h-3.5 text-amber-400" />
@@ -133,7 +133,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               id="btn-model-selector"
               onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer ${currentTheme.classes.bgCard} ${currentTheme.classes.borderPrimary} text-white hover:border-amber-300 shadow-xs`}
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-mono font-bold text-white shadow-xs transition-all hover:border-amber-300 sm:px-2.5 sm:py-1 ${currentTheme.classes.bgCard} ${currentTheme.classes.borderPrimary}`}
               title="Επιλογή AI Μοντέλου"
             >
               <Cpu className="w-3.5 h-3.5 text-amber-400" />
@@ -144,7 +144,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {modelDropdownOpen && (
               <div
-                className={`absolute left-0 sm:right-0 sm:left-auto mt-2 w-72 rounded-xl shadow-2xl border ${currentTheme.classes.borderPrimary} ${currentTheme.classes.bgPanel} p-2 z-50 animate-fade-in font-mono`}
+                className={`absolute left-0 sm:right-0 sm:left-auto mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl shadow-2xl border ${currentTheme.classes.borderPrimary} ${currentTheme.classes.bgPanel} p-2 z-50 animate-fade-in font-mono`}
               >
                 <div className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider border-b border-white/10 mb-1 flex items-center justify-between">
                   <span>{lang === 'el' ? 'Μοντέλο Google Gemini' : 'Google Gemini Model'}</span>
@@ -208,11 +208,32 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
+          <div className="flex shrink-0 items-center rounded-lg border border-white/10 bg-black/20 p-0.5">
+            <button
+              type="button"
+              onClick={() => onLayoutModeChange('desktop')}
+              aria-label={lang === 'el' ? 'Διάταξη υπολογιστή' : 'Desktop layout'}
+              aria-pressed={layoutMode === 'desktop'}
+              className={`rounded-md p-1.5 transition ${layoutMode === 'desktop' ? 'bg-cyan-400/15 text-cyan-200' : 'text-slate-500 hover:text-slate-200'}`}
+            >
+              <Laptop className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onLayoutModeChange('mobile')}
+              aria-label={lang === 'el' ? 'Διάταξη κινητού' : 'Mobile layout'}
+              aria-pressed={layoutMode === 'mobile'}
+              className={`rounded-md p-1.5 transition ${layoutMode === 'mobile' ? 'bg-emerald-400/15 text-emerald-200' : 'text-slate-500 hover:text-slate-200'}`}
+            >
+              <Smartphone className="h-4 w-4" />
+            </button>
+          </div>
+
           {/* Theme & Shades Customizer Button */}
           <button
             id="btn-open-theme-modal"
             onClick={onOpenThemeModal}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-medium border transition-all cursor-pointer ${currentTheme.classes.bgCard} ${currentTheme.classes.borderMuted} hover:border-amber-400 text-white`}
+            className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-mono font-medium text-white transition-all hover:border-amber-400 sm:px-2.5 sm:py-1 ${currentTheme.classes.bgCard} ${currentTheme.classes.borderMuted}`}
             title={lang === 'el' ? 'Αποχρώσεις & Θέματα' : 'Shades & Themes'}
           >
             <Palette className="w-3.5 h-3.5 text-amber-400" />
@@ -221,36 +242,6 @@ export const Header: React.FC<HeaderProps> = ({
               className="w-2.5 h-2.5 rounded-full border border-white/30"
               style={{ backgroundColor: currentTheme.colorSwatch }}
             />
-          </button>
-
-          {/* Fernet Key Status (Masked with Dots ••••••••) */}
-          <button
-            id="btn-key-status"
-            onClick={onOpenKeyModal}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-mono font-medium border transition-all cursor-pointer ${
-              keyValid
-                ? `${currentTheme.classes.bgCard} text-slate-200 ${currentTheme.classes.borderMuted} hover:border-amber-400`
-                : 'bg-amber-950/40 text-amber-400 border-amber-500/50'
-            }`}
-            title={lang === 'el' ? 'Κλειδί Fernet (secret.key)' : 'Fernet secret.key'}
-          >
-            <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-            <span className="font-mono text-[11px] tracking-widest text-amber-300">
-              {keyValid ? '••••••••' : (lang === 'el' ? 'Απόν' : 'Missing')}
-            </span>
-          </button>
-
-          {/* Encrypted Vault Button */}
-          <button
-            id="btn-open-vault"
-            onClick={onOpenVault}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold ${currentTheme.classes.btnPrimary} ${currentTheme.classes.btnPrimaryHover} shadow-sm shadow-amber-500/30 transition-all cursor-pointer`}
-          >
-            <FolderLock className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">HoneyVault</span>
-            <span className="px-1.5 py-0.2 rounded-md bg-black/70 text-amber-300 text-[10px] font-mono font-bold">
-              {status?.vault?.fileCount ?? 0}
-            </span>
           </button>
 
           {/* Language Toggle */}

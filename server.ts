@@ -282,11 +282,8 @@ app.post('/api/chat', async (req, res) => {
   } catch (error: any) {
     console.error('Chat execution error:', error);
     if (error.message?.startsWith('Όλα τα Google API keys απέτυχαν')) {
-      return res.status(200).json({
-        text: 'Τα διαθέσιμα API έχουν προσωρινά φτάσει το όριό τους. Η συνομιλία θα συνεχιστεί μόλις γίνει διαθέσιμο το επόμενο API.',
-        modelUsed: getGeminiConfig().model,
-        groundingSources: [],
-        providerUnavailable: true,
+      return res.status(503).json({
+        error: 'Όλα τα API keys δοκιμάστηκαν και είναι προσωρινά μη διαθέσιμα λόγω ορίου ή φόρτου. Δοκίμασε ξανά σε λίγο.',
       });
     }
     res.status(500).json({
@@ -372,131 +369,14 @@ app.post('/api/sessions/save-encrypted', (req, res) => {
   }
 });
 
-app.get('/api/sessions/list', (req, res) => {
-  try {
-    if (!fs.existsSync(VAULT_DIR_PATH)) {
-      return res.json({ files: [] });
-    }
+const vaultReadDisabled = (_req: express.Request, res: express.Response) =>
+  res.status(410).json({ error: 'Reading saved sessions is disabled on this shared app.' });
 
-    const files = fs
-      .readdirSync(VAULT_DIR_PATH)
-      .filter((f) => f.endsWith('.enc'))
-      .map((filename) => {
-        const filePath = path.join(VAULT_DIR_PATH, filename);
-        const stats = fs.statSync(filePath);
-        return {
-          filename,
-          sizeBytes: stats.size,
-          createdAt: stats.birthtime.toISOString(),
-          modifiedAt: stats.mtime.toISOString(),
-        };
-      })
-      .sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime());
-
-    res.json({ files });
-  } catch (err: any) {
-    res.status(500).json({ error: 'Failed to list vault files' });
-  }
-});
-
-app.post('/api/sessions/decrypt', (req, res) => {
-  try {
-    const { filename, rawEncryptedContent } = req.body;
-
-    if (!fs.existsSync(KEY_FILE_PATH)) {
-      return res.status(400).json({
-        error: "Δεν υπάρχει 'secret.key' για αποκρυπτογράφηση!",
-      });
-    }
-
-    const keyData = fs.readFileSync(KEY_FILE_PATH, 'utf8').trim();
-    const cipher = new FernetCipher(keyData);
-
-    let token = rawEncryptedContent;
-    if (!token && filename) {
-      const filePath = path.join(VAULT_DIR_PATH, path.basename(filename));
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: `Το αρχείο ${filename} δεν βρέθηκε στο Vault.` });
-      }
-      token = fs.readFileSync(filePath, 'utf8').trim();
-    }
-
-    if (!token) {
-      return res.status(400).json({ error: 'Δεν δόθηκε κρυπτογραφημένο περιεχόμενο.' });
-    }
-
-    const decryptedString = cipher.decrypt(token);
-
-    // Try parsing as structured JSON
-    try {
-      const parsed = JSON.parse(decryptedString);
-      return res.json({
-        success: true,
-        structured: true,
-        data: parsed,
-        filename: filename || parsed.filename,
-        rawText: parsed.rawText || JSON.stringify(parsed, null, 2),
-      });
-    } catch {
-      // Return raw string format
-      return res.json({
-        success: true,
-        structured: false,
-        rawText: decryptedString,
-        filename,
-      });
-    }
-  } catch (err: any) {
-    console.error('Decryption failed:', err);
-    res.status(400).json({
-      success: false,
-      error: `Αποτυχία Αποκρυπτογράφησης! Το κλειδί δεν ταιριάζει ή το αρχείο είναι αλλοιωμένο (${err.message}).`,
-    });
-  }
-});
-
-app.get('/api/sessions/download/:filename', (req, res) => {
-  try {
-    const filename = path.basename(req.params.filename);
-    const filePath = path.join(VAULT_DIR_PATH, filename);
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).send('File not found');
-    }
-    res.download(filePath, filename);
-  } catch (err: any) {
-    res.status(500).send('Error downloading file');
-  }
-});
-
-app.delete('/api/sessions/:filename', (req, res) => {
-  try {
-    const filename = path.basename(req.params.filename);
-    const filePath = path.join(VAULT_DIR_PATH, filename);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-    res.json({ success: true, message: `Διαγράφηκε το αρχείο ${filename}` });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.patch('/api/sessions/:filename', (req, res) => {
-  try {
-    const oldFilename = path.basename(req.params.filename);
-    const requestedName = typeof req.body?.filename === 'string' ? req.body.filename.trim() : '';
-    const newFilename = `${requestedName.replace(/[^a-zA-Z0-9_-]/g, '_')}.enc`;
-    if (!requestedName) return res.status(400).json({ error: 'Το νέο όνομα είναι υποχρεωτικό.' });
-    const oldPath = path.join(VAULT_DIR_PATH, oldFilename);
-    const newPath = path.join(VAULT_DIR_PATH, newFilename);
-    if (!fs.existsSync(oldPath)) return res.status(404).json({ error: 'Το αρχείο δεν βρέθηκε.' });
-    if (oldPath !== newPath && fs.existsSync(newPath)) return res.status(409).json({ error: 'Υπάρχει ήδη αρχείο με αυτό το όνομα.' });
-    fs.renameSync(oldPath, newPath);
-    res.json({ success: true, filename: newFilename });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Αποτυχία μετονομασίας αρχείου.' });
-  }
-});
+app.get('/api/sessions/list', vaultReadDisabled);
+app.post('/api/sessions/decrypt', vaultReadDisabled);
+app.get('/api/sessions/download/:filename', vaultReadDisabled);
+app.delete('/api/sessions/:filename', vaultReadDisabled);
+app.patch('/api/sessions/:filename', vaultReadDisabled);
 
 // ---------------------------------------------------------
 // 4. Vite Dev Server & Static Asset Serving

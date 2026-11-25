@@ -7,9 +7,9 @@ import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { ChatArea } from './components/ChatArea';
 import { InputBar } from './components/InputBar';
-import { VaultModal } from './components/VaultModal';
 import { ThemeModal } from './components/ThemeModal';
 import { UniversityHubModal } from './components/UniversityHubModal';
+import nickbeeLogo from './assets/images/nickbee_logo_1787475390904.jpg';
 import {
   ChatMessage,
   MultimodalAttachment,
@@ -18,7 +18,7 @@ import {
   AppTheme,
 } from './types';
 import { APP_THEMES, DEFAULT_THEME_SETTINGS } from './lib/themes';
-import { Check, AlertCircle } from 'lucide-react';
+import { AlertCircle, Check, Laptop, Smartphone } from 'lucide-react';
 
 interface ConversationTab {
   id: string;
@@ -29,6 +29,10 @@ interface ConversationTab {
 }
 
 export default function App() {
+  const [layoutMode, setLayoutMode] = useState<'mobile' | 'desktop' | null>(() => {
+    const saved = sessionStorage.getItem('nickbee-layout-mode');
+    return saved === 'mobile' || saved === 'desktop' ? saved : null;
+  });
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [conversationTabs, setConversationTabs] = useState<ConversationTab[]>([{ id: 'chat-1', title: 'Νέα συνομιλία', messages: [], apiKeyId: null, requestStartedAt: null }]);
   const [activeTabId, setActiveTabId] = useState('chat-1');
@@ -62,7 +66,6 @@ export default function App() {
   });
 
   // Modals
-  const [vaultOpen, setVaultOpen] = useState(false);
   const [themeModalOpen, setThemeModalOpen] = useState(false);
   const [universityHubOpen, setUniversityHubOpen] = useState(false);
   const [chemistryWorkspaceOpen, setChemistryWorkspaceOpen] = useState(false);
@@ -78,6 +81,12 @@ export default function App() {
   const activeTab = conversationTabs.find((tab) => tab.id === activeTabId) || conversationTabs[0];
   const messages = activeTab.messages;
   const activeApiKeyId = activeTab.apiKeyId;
+  const isMobileLayout = layoutMode === 'mobile';
+
+  const selectLayoutMode = (mode: 'mobile' | 'desktop') => {
+    sessionStorage.setItem('nickbee-layout-mode', mode);
+    setLayoutMode(mode);
+  };
 
   const updateConversationTab = (tabId: string, update: (tab: ConversationTab) => ConversationTab) => {
     setConversationTabs((tabs) => tabs.map((tab) => tab.id === tabId ? update(tab) : tab));
@@ -367,30 +376,44 @@ export default function App() {
     }
   };
 
-  const handleLoadSessionToChat = (loadedMessages: any[]) => {
-    const formatted: ChatMessage[] = loadedMessages.map((m) => ({
-      id: Math.random().toString(),
-      role:
-        m.role?.toLowerCase().includes('user') ||
-        m.role?.includes('nickbee') ||
-        m.role?.includes('ΕΣΥ')
-          ? 'user'
-          : 'model',
-      text: m.text || '',
-      attachment: m.attachment,
-      attachments: m.attachments,
-      timestamp: m.timestamp || new Date().toLocaleTimeString(),
-    }));
-    updateConversationTab(activeTabId, (tab) => ({ ...tab, messages: formatted, title: tab.title === 'Νέα συνομιλία' ? 'Συνέχεια συνομιλίας' : tab.title }));
-    showToast(
-      lang === 'el' ? 'Η συνομιλία φορτώθηκε στο Chat!' : 'Session loaded to chat!',
-      'success'
+  if (!layoutMode) {
+    return (
+      <main className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#080b16] px-6 text-slate-100">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_25%,rgba(16,185,129,0.16),transparent_38%),radial-gradient(ellipse_at_15%_85%,rgba(59,130,246,0.12),transparent_35%)]" />
+        <div className="relative flex w-full max-w-sm flex-col items-center">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-emerald-300/50 bg-slate-900 shadow-[0_0_45px_rgba(16,185,129,0.25)]">
+            <img src={nickbeeLogo} alt="" className="h-full w-full object-cover" />
+          </div>
+          <h1 className="mb-10 text-3xl font-black tracking-tight text-white">
+            <span className="text-emerald-300">nick</span>bee
+            <span className="ml-2 text-sm font-medium tracking-[0.2em] text-slate-400"> AI</span>
+          </h1>
+          <div className="flex items-center gap-5">
+            <button
+              type="button"
+              onClick={() => selectLayoutMode('desktop')}
+              aria-label="Laptop layout"
+              className="group flex h-28 w-28 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-slate-300 shadow-xl backdrop-blur transition hover:-translate-y-1 hover:border-cyan-300/60 hover:bg-cyan-300/10 hover:text-cyan-200 hover:shadow-[0_12px_40px_rgba(34,211,238,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+            >
+              <Laptop className="h-11 w-11 transition-transform group-hover:scale-110" strokeWidth={1.5} />
+            </button>
+            <button
+              type="button"
+              onClick={() => selectLayoutMode('mobile')}
+              aria-label="Mobile layout"
+              className="group flex h-28 w-28 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-slate-300 shadow-xl backdrop-blur transition hover:-translate-y-1 hover:border-emerald-300/60 hover:bg-emerald-300/10 hover:text-emerald-200 hover:shadow-[0_12px_40px_rgba(16,185,129,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+            >
+              <Smartphone className="h-10 w-10 transition-transform group-hover:scale-110" strokeWidth={1.5} />
+            </button>
+          </div>
+        </div>
+      </main>
     );
-  };
+  }
 
   return (
     <div
-      className={`flex flex-col h-screen ${currentTheme.classes.bgRoot} text-slate-100 font-mono antialiased overflow-hidden selection:bg-amber-500/30 selection:text-amber-200`}
+      className={`${isMobileLayout ? 'mx-auto h-auto min-h-[100dvh] w-full max-w-[560px] overflow-visible' : 'h-screen h-[100dvh] min-h-0 overflow-hidden max-lg:h-auto max-lg:min-h-[100dvh] max-lg:overflow-visible'} flex flex-col ${currentTheme.classes.bgRoot} text-slate-100 font-mono antialiased selection:bg-amber-500/30 selection:text-amber-200`}
     >
       {/* Toast Notification */}
       {notification && (
@@ -421,10 +444,10 @@ export default function App() {
         status={status}
         activeView={activeView}
         setActiveView={setActiveView}
-        onOpenVault={() => setVaultOpen(true)}
-        onOpenKeyModal={() => setVaultOpen(true)}
         onOpenThemeModal={() => setThemeModalOpen(true)}
         onOpenUniversityHub={() => setUniversityHubOpen(true)}
+        layoutMode={layoutMode}
+        onLayoutModeChange={selectLayoutMode}
         selectedModel={selectedModel}
         activeApiKeyId={activeApiKeyId}
         onSelectModel={handleSelectModel}
@@ -434,9 +457,9 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className={`flex-1 flex flex-col overflow-hidden ${currentTheme.classes.bgRoot}`}>
-        <div className="flex-1 flex flex-col h-full overflow-hidden max-w-7xl w-full mx-auto">
-            <div className="flex items-center gap-1 border-b border-white/10 px-3 py-2 overflow-x-auto">
+      <main className={`${isMobileLayout ? 'flex-none overflow-visible' : 'flex min-h-0 flex-1 flex-col overflow-hidden max-lg:flex-none max-lg:overflow-visible'} ${currentTheme.classes.bgRoot}`}>
+        <div className={`${isMobileLayout ? 'mx-auto flex h-auto min-h-0 w-full flex-none flex-col overflow-visible' : 'mx-auto flex h-full min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden max-lg:h-auto max-lg:flex-none max-lg:overflow-visible'}`}>
+            <div className="flex items-center gap-1 border-b border-white/10 px-3 py-2 overflow-x-auto max-lg:sticky max-lg:top-0 max-lg:z-20 max-lg:bg-slate-950/95">
               {conversationTabs.map((tab) => (
                 <div key={tab.id} className={`flex items-center gap-1 shrink-0 rounded-lg border px-2 py-1 text-xs ${tab.id === activeTabId ? 'border-amber-400 bg-amber-500/15 text-amber-200' : 'border-white/10 text-slate-400'}`}>
                   <button onClick={() => setActiveTabId(tab.id)} className="max-w-36 truncate">{tab.title}</button>
@@ -464,9 +487,9 @@ export default function App() {
               chemistryWorkspaceOpen={chemistryWorkspaceOpen}
               onChemistryWorkspaceOpenChange={setChemistryWorkspaceOpen}
               chemistryWorkspaceRequest={chemistryWorkspaceRequest}
+              layoutMode={layoutMode}
               onSendMessage={handleSendMessage}
               onQuickCommand={(cmd) => {
-                if (cmd === 'read') setVaultOpen(true);
                 if (cmd === 'upload') {
                   const input = document.querySelector('input[type="file"]') as HTMLInputElement;
                   input?.click();
@@ -477,7 +500,6 @@ export default function App() {
                 <InputBar
                   onSendMessage={handleSendMessage}
                   onSaveAndEncrypt={handleSaveAndEncrypt}
-                  onOpenVault={() => setVaultOpen(true)}
                   onOpenUniversityHub={() => setUniversityHubOpen(true)}
                   isGenerating={generatingTabs.has(activeTabId)}
                   isOnline={status?.online ?? true}
@@ -509,14 +531,6 @@ export default function App() {
         onOpenChemistry={() => { setChemistryWorkspaceOpen(true); setChemistryWorkspaceRequest((request) => request + 1); }}
       />
 
-
-      {/* HoneyVault Modal */}
-      <VaultModal
-        isOpen={vaultOpen}
-        onClose={() => setVaultOpen(false)}
-        onLoadSessionToChat={handleLoadSessionToChat}
-        lang={lang}
-      />
 
       {/* Theme & Shades Customizer Modal */}
       <ThemeModal

@@ -44,6 +44,7 @@ interface ChatAreaProps {
   chemistryWorkspaceOpen: boolean;
   onChemistryWorkspaceOpenChange: (open: boolean) => void;
   chemistryWorkspaceRequest: number;
+  layoutMode: 'mobile' | 'desktop';
   onSendMessage?: (text: string, attachments?: MultimodalAttachment[]) => void;
   currentTheme: AppTheme;
   themeSettings: ThemeSettings;
@@ -152,6 +153,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   chemistryWorkspaceOpen,
   onChemistryWorkspaceOpenChange: setChemistryWorkspaceOpen,
   chemistryWorkspaceRequest,
+  layoutMode,
   onSendMessage,
   currentTheme,
   themeSettings,
@@ -163,6 +165,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const bottomRef = useRef<HTMLDivElement>(null);
   const studyHomeRef = useRef<HTMLDivElement>(null);
   const layoutRef = useRef<HTMLDivElement>(null);
+  const studyPanelRef = useRef<HTMLElement>(null);
   const [studyHost, setStudyHost] = React.useState<HTMLDivElement | null>(null);
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = React.useState<string | null>(null);
@@ -332,6 +335,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     if (chemistryWorkspaceRequest > 0) navigateToStudyItem('chemistry-workspace');
   }, [chemistryWorkspaceRequest]);
 
+  useEffect(() => {
+    if (!studyPanelOpen || !selectedStudyId || (layoutMode !== 'mobile' && window.matchMedia('(min-width: 1024px)').matches)) return;
+    const timer = window.setTimeout(() => {
+      studyPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [layoutMode, selectedStudyId, studyPanelOpen]);
+
   const openStudyWindow = () => {
     const popup = window.open('', 'nickbee-study-space', 'popup=yes,width=1100,height=850,resizable=yes,scrollbars=yes');
     if (!popup) {
@@ -420,18 +431,19 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       : themeSettings.fontSize === 'spacious'
       ? 'text-base'
       : 'text-base';
+  const isMobileLayout = layoutMode === 'mobile';
 
   return (
     <div
       ref={layoutRef}
-      className={`flex min-h-0 flex-1 flex-col overflow-hidden lg:grid ${isResizingColumns ? 'lg:transition-none' : 'lg:transition-[grid-template-columns] lg:duration-200 lg:ease-out'}`}
-      style={{ gridTemplateColumns: studyPanelOpen ? `minmax(0, ${chatColumnPercent}fr) 12px minmax(0, ${100 - chatColumnPercent}fr)` : 'minmax(0, 1fr)' }}
+      className={`${isMobileLayout ? 'flex-none overflow-visible' : 'flex-1 overflow-hidden max-lg:flex-none max-lg:overflow-visible lg:grid'} flex min-h-0 flex-col ${!isMobileLayout && (isResizingColumns ? 'lg:transition-none' : 'lg:transition-[grid-template-columns] lg:duration-200 lg:ease-out')}`}
+      style={{ gridTemplateColumns: !isMobileLayout && studyPanelOpen ? `minmax(0, ${chatColumnPercent}fr) 12px minmax(0, ${100 - chatColumnPercent}fr)` : 'minmax(0, 1fr)' }}
     >
       <div
-        className="flex min-h-0 min-w-0 w-full flex-col lg:col-start-1"
+        className={`flex min-h-0 min-w-0 w-full flex-col ${isMobileLayout ? 'flex-none' : 'max-lg:flex-none lg:col-start-1'}`}
       >
       <div
-        className={`relative min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-8 space-y-5 ${currentTheme.classes.bgRoot} font-mono ${fontSizeClass} select-text`}
+        className={`relative min-h-0 flex-1 overflow-y-auto px-3 pt-4 pb-5 space-y-5 ${isMobileLayout ? 'h-[42dvh] min-h-[260px] max-h-[480px] flex-none' : 'max-lg:h-[42dvh] max-lg:min-h-[260px] max-lg:max-h-[480px] max-lg:flex-none'} sm:px-4 sm:pt-6 sm:pb-8 ${currentTheme.classes.bgRoot} font-mono ${fontSizeClass} select-text`}
         style={{ zoom: chatScale }}
       >
       {/* Optional Honeycomb Mesh Background Pattern */}
@@ -458,9 +470,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       )}
 
       {messages.length === 0 ? (
-        <div className="max-w-2xl mx-auto text-center py-8 px-4 relative z-10">
+        <div className="relative z-10 mx-auto max-w-2xl px-2 py-5 text-center sm:px-4 sm:py-8">
           {/* Official nickbee Bee Mascot & Logo Avatar */}
-          <div className="relative w-20 h-20 rounded-full overflow-hidden border-2 border-amber-400 shadow-xl shadow-amber-500/20 mx-auto mb-4 bg-slate-900 ring-4 ring-amber-400/20">
+          <div className="relative mx-auto mb-3 h-14 w-14 overflow-hidden rounded-full border-2 border-amber-400 bg-slate-900 shadow-xl shadow-amber-500/20 ring-4 ring-amber-400/20 sm:mb-4 sm:h-20 sm:w-20">
             <img
               src="/nickbee_logo.jpg"
               alt="nickbee logo"
@@ -472,17 +484,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             />
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center justify-center gap-2 font-mono">
+          <h2 className="flex items-center justify-center gap-2 font-mono text-2xl font-black tracking-tight text-white sm:text-3xl">
             <span className={`${currentTheme.classes.textAccent} drop-shadow-[0_0_12px_rgba(251,191,36,0.6)]`}>
               nick
             </span>
             <span className="text-white">bee</span>
-            <span className="text-xs px-2 py-0.5 rounded bg-black/60 border border-amber-500/40 text-amber-400">
+            <span className="hidden rounded border border-amber-500/40 bg-black/60 px-2 py-0.5 text-xs text-amber-400 sm:inline">
               ACADEMIC AI
             </span>
           </h2>
 
-          <div className="flex items-center justify-center gap-2 mt-2">
+          <div className="mt-2 hidden items-center justify-center gap-2 sm:flex">
             <span className="text-xs text-slate-400">
               {lang === 'el' ? 'Χρήστης:' : 'User:'}{' '}
               <strong className="text-amber-300 font-bold">nickbee</strong>
@@ -496,11 +508,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </div>
 
           {/* Quick command & University Hub buttons */}
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 sm:mt-7 sm:gap-2.5">
             {onOpenUniversityHub && (
               <button
                 onClick={onOpenUniversityHub}
-                className={`px-3.5 py-2 rounded-xl border border-amber-500/50 bg-amber-500/10 text-xs font-mono font-bold text-amber-300 hover:bg-amber-500/20 hover:border-amber-400 hover:text-white transition-all flex items-center gap-2 shadow-sm shadow-amber-500/20 cursor-pointer`}
+                className={`flex items-center gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs font-mono font-bold text-amber-300 shadow-sm shadow-amber-500/20 transition-all hover:border-amber-400 hover:bg-amber-500/20 hover:text-white cursor-pointer`}
               >
                 <GraduationCap className="w-4 h-4 text-amber-400" />
                 <span>{lang === 'el' ? '🎓 Ύλη Εξαμήνου & Φωτογραφίες' : '🎓 Semester Syllabus & Photos'}</span>
@@ -515,25 +527,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   onSendMessage?.('Φτιάξε μου ένα διαδραστικό Quiz 10 ερωτήσεων πολλαπλής επιλογής (A, B, C, D) για την εξεταστική.');
                 }
               }}
-              className={`px-3.5 py-2 rounded-xl border ${currentTheme.classes.borderMuted} ${currentTheme.classes.bgCard} text-xs font-mono font-medium text-slate-200 hover:border-amber-400 hover:text-white transition-all flex items-center gap-2 shadow-xs cursor-pointer`}
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-mono font-medium text-slate-200 shadow-xs transition-all hover:border-amber-400 hover:text-white cursor-pointer ${currentTheme.classes.borderMuted} ${currentTheme.classes.bgCard}`}
             >
               <Award className="w-3.5 h-3.5 text-amber-400" />
               <span>{lang === 'el' ? '🎯 Διαδραστικό Quiz Πολλαπλής' : '🎯 Interactive Quiz'}</span>
             </button>
 
             <button
-              onClick={() => onQuickCommand?.('read')}
-              className={`px-3.5 py-2 rounded-xl border ${currentTheme.classes.borderMuted} ${currentTheme.classes.bgCard} text-xs font-mono font-medium text-slate-200 hover:border-amber-400 hover:text-white transition-all flex items-center gap-2 shadow-xs cursor-pointer`}
-            >
-              <span className={`px-1.5 py-0.5 rounded ${currentTheme.classes.badgeBg} ${currentTheme.classes.badgeText} font-bold border ${currentTheme.classes.borderMuted}`}>
-                read
-              </span>
-              <span>&bull; {lang === 'el' ? 'HoneyVault (.enc)' : 'HoneyVault (.enc)'}</span>
-            </button>
-
-            <button
               onClick={() => onQuickCommand?.('upload')}
-              className={`px-3.5 py-2 rounded-xl border ${currentTheme.classes.borderMuted} ${currentTheme.classes.bgCard} text-xs font-mono font-medium text-slate-200 hover:border-amber-400 hover:text-white transition-all flex items-center gap-2 shadow-xs cursor-pointer`}
+              className={`hidden items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-mono font-medium text-slate-200 shadow-xs transition-all hover:border-amber-400 hover:text-white cursor-pointer sm:flex ${currentTheme.classes.borderMuted} ${currentTheme.classes.bgCard}`}
             >
               <span className={`px-1.5 py-0.5 rounded ${currentTheme.classes.badgeBg} ${currentTheme.classes.badgeText} font-bold border ${currentTheme.classes.borderMuted}`}>
                 upload
@@ -542,7 +544,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </button>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-white/10 flex flex-wrap items-center justify-center gap-5 text-[11px] text-slate-400">
+          <div className="mt-4 hidden flex-wrap items-center justify-center gap-5 border-t border-white/10 pt-6 text-[11px] text-slate-400 sm:flex sm:mt-8">
             <span className="flex items-center gap-1.5 font-mono">
               <GraduationCap className="w-3.5 h-3.5 text-amber-400" /> University Academic Tutor
             </span>
@@ -612,7 +614,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 </div>
               )}
 
-              <div className={`space-y-1.5 max-w-[85%] ${isUser ? 'items-end' : 'items-start'}`}>
+              <div className={`space-y-1.5 max-w-[92%] sm:max-w-[85%] ${isUser ? 'items-end' : 'items-start'}`}>
                 {/* Header label: User is nickbee, AI is Ai */}
                 <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono px-1">
                   <span
@@ -889,13 +891,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           }}
           onPointerUp={() => setIsResizingColumns(false)}
           onPointerCancel={() => setIsResizingColumns(false)}
-          className={`${studyPanelOpen ? 'hidden lg:flex' : 'hidden'} group z-20 w-3 shrink-0 cursor-col-resize touch-none items-center justify-center outline-none transition-colors hover:bg-cyan-400/10 focus-visible:bg-cyan-400/15 lg:col-start-2 lg:row-start-1`}
+          className={`${studyPanelOpen && !isMobileLayout ? 'hidden lg:flex' : 'hidden'} group z-20 w-3 shrink-0 cursor-col-resize touch-none items-center justify-center outline-none transition-colors hover:bg-cyan-400/10 focus-visible:bg-cyan-400/15 lg:col-start-2 lg:row-start-1`}
         >
           <span className="flex h-12 w-2 flex-col items-center justify-center gap-1 rounded-full border border-white/10 bg-slate-800 text-[8px] leading-none text-slate-400 shadow-lg transition group-hover:border-cyan-300/50 group-hover:text-cyan-200">
             <span>‹</span><span>›</span>
           </span>
         </div>
-        <aside aria-hidden={!studyPanelOpen} className={`${studyPanelOpen ? 'flex' : 'hidden'} min-h-0 min-w-0 w-full flex-col border-t ${currentTheme.classes.borderPrimary} ${currentTheme.classes.bgPanel} transition-[width,opacity] duration-200 ease-out lg:col-start-3 lg:row-start-1 lg:h-full lg:border-l lg:border-t-0`}>
+        <aside ref={studyPanelRef} aria-hidden={!studyPanelOpen} className={`${studyPanelOpen ? 'flex' : 'hidden'} min-h-0 min-w-0 w-full shrink-0 flex-col border-t ${currentTheme.classes.borderPrimary} ${currentTheme.classes.bgPanel} transition-[width,opacity] duration-200 ease-out ${isMobileLayout ? 'mt-4 min-h-[100dvh] scroll-mt-24' : 'max-lg:mt-4 max-lg:min-h-[100dvh] max-lg:scroll-mt-24 lg:col-start-3 lg:row-start-1 lg:h-full lg:border-l lg:border-t-0'}`}>
           <div className="shrink-0 border-b border-white/10">
             <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-2">
               <div className="min-w-0">
@@ -914,11 +916,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     setSelectedStudyId('chemistry-workspace');
                     setStudyPanelVisible(true);
                   }}
-                  className="rounded-lg border border-cyan-400/30 px-2 py-1.5 text-[10px] text-cyan-200 hover:border-cyan-300 hover:bg-cyan-400/10"
+                  className="hidden rounded-lg border border-cyan-400/30 px-2 py-1.5 text-[10px] text-cyan-200 hover:border-cyan-300 hover:bg-cyan-400/10 lg:inline-flex"
                 >
                   {lang === 'el' ? 'Χημεία' : 'Chemistry'}
                 </button>
-                <button type="button" onClick={openStudyWindow} className="rounded-lg border border-white/10 px-2 py-1.5 text-[10px] text-slate-300 hover:border-emerald-400 hover:text-emerald-200">
+                <button type="button" onClick={openStudyWindow} className="hidden rounded-lg border border-white/10 px-2 py-1.5 text-[10px] text-slate-300 hover:border-emerald-400 hover:text-emerald-200 lg:inline-flex">
                   {lang === 'el' ? '↗ Νέο παράθυρο' : '↗ Pop out'}
                 </button>
                 <button type="button" onClick={() => { if (studyWindow) returnStudyToChat(); setStudyPanelVisible(false); }} aria-label={lang === 'el' ? 'Κλείσιμο χώρου μελέτης' : 'Close study space'} title={lang === 'el' ? 'Κλείσιμο' : 'Close'} className="rounded-lg border border-white/10 px-2 py-1 text-sm text-slate-300 hover:border-rose-400 hover:text-rose-200">
