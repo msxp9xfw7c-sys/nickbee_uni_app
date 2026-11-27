@@ -29,16 +29,26 @@ const suggestedCompounds: Record<string, SuggestedCompound[]> = {
   K: [{ formula: 'KCl', name: 'Potassium chloride' }, { formula: 'KOH', name: 'Potassium hydroxide' }, { formula: 'KMnO4', name: 'Potassium permanganate' }],
   Mn: [{ formula: 'KMnO4', name: 'Potassium permanganate' }, { formula: 'H2SO4', name: 'Sulfuric acid' }, { formula: 'HBr', name: 'Hydrogen bromide' }, { formula: 'MnO2', name: 'Manganese dioxide' }, { formula: 'MnSO4', name: 'Manganese(II) sulfate' }],
   S: [{ formula: 'H2SO4', name: 'Sulfuric acid' }, { formula: 'SO2', name: 'Sulfur dioxide' }, { formula: 'H2S', name: 'Hydrogen sulfide' }],
-  Br: [{ formula: 'HBr', name: 'Hydrogen bromide' }, { formula: 'Br2', name: 'Bromine' }],
-  N: [{ formula: 'NH3', name: 'Ammonia' }, { formula: 'HNO3', name: 'Nitric acid' }, { formula: 'N2', name: 'Nitrogen' }],
+  Br: [{ formula: 'HBr', name: 'Hydrogen bromide' }],
+  N: [{ formula: 'NH3', name: 'Ammonia' }, { formula: 'HNO3', name: 'Nitric acid' }],
   O: [{ formula: 'H2O', name: 'Water' }, { formula: 'CO2', name: 'Carbon dioxide' }, { formula: 'KMnO4', name: 'Potassium permanganate' }],
   C: [{ formula: 'CO2', name: 'Carbon dioxide' }, { formula: 'CH4', name: 'Methane' }, { formula: 'CaCO3', name: 'Calcium carbonate' }],
-  Cl: [{ formula: 'HCl', name: 'Hydrogen chloride' }, { formula: 'NaCl', name: 'Sodium chloride' }, { formula: 'Cl2', name: 'Chlorine' }],
+  Cl: [{ formula: 'HCl', name: 'Hydrogen chloride' }, { formula: 'NaCl', name: 'Sodium chloride' }],
   Fe: [{ formula: 'FeO', name: 'Iron(II) oxide' }, { formula: 'Fe2O3', name: 'Iron(III) oxide' }, { formula: 'FeCl3', name: 'Iron(III) chloride' }],
   Cu: [{ formula: 'CuO', name: 'Copper(II) oxide' }, { formula: 'CuSO4', name: 'Copper(II) sulfate' }],
   Na: [{ formula: 'NaCl', name: 'Sodium chloride' }, { formula: 'NaOH', name: 'Sodium hydroxide' }, { formula: 'Na2CO3', name: 'Sodium carbonate' }],
   Ca: [{ formula: 'CaCO3', name: 'Calcium carbonate' }, { formula: 'CaO', name: 'Calcium oxide' }, { formula: 'CaCl2', name: 'Calcium chloride' }],
 };
+
+const diatomicMolecules = [
+  { formula: 'H2', nameEl: 'Υδρογόνο', nameEn: 'Hydrogen' },
+  { formula: 'N2', nameEl: 'Άζωτο', nameEn: 'Nitrogen' },
+  { formula: 'O2', nameEl: 'Οξυγόνο', nameEn: 'Oxygen' },
+  { formula: 'F2', nameEl: 'Φθόριο', nameEn: 'Fluorine' },
+  { formula: 'Cl2', nameEl: 'Χλώριο', nameEn: 'Chlorine' },
+  { formula: 'Br2', nameEl: 'Βρώμιο', nameEn: 'Bromine' },
+  { formula: 'I2', nameEl: 'Ιώδιο', nameEn: 'Iodine' },
+];
 
 const manganeseLessonSteps = [
   { titleEl: 'Αρχική εξίσωση', titleEn: 'Starting equation', explanationEl: 'Αναγνωρίζουμε τα αντιδρώντα και τα προϊόντα της συγκεκριμένης θεωρητικής οξειδοαναγωγικής μετατροπής. Οι συντελεστές παραμένουν κρυφοί μέχρι να αιτιολογηθούν.', explanationEn: 'Identify the reactants and products in this theoretical redox transformation. Coefficients stay hidden until they are justified.' },
@@ -290,7 +300,7 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
         <div>
           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-300">{localized('Εργαστήριο σύνθεσης', 'Composition workspace')}</div>
           <h3 className="text-lg font-black text-white">{localized('Χημεία', 'Chemistry')}</h3>
-          <p className="font-sans text-sm leading-6 text-slate-300">{localized('Επίλεξε δύο ή περισσότερα στοιχεία, ρύθμισε τα άτομα και πρόσθεσε έναν τύπο με συνολικό φορτίο μηδέν.', 'Choose two or more elements, adjust atom counts, and add a formula with zero total charge.')}</p>
+          <p className="font-sans text-sm leading-6 text-slate-300">{localized('Επίλεξε δύο ή περισσότερα στοιχεία, ρύθμισε τα άτομα και πρόσθεσε ουδέτερους τύπους ή ιόντα.', 'Choose two or more elements, adjust atom counts, and add neutral formulas or ions.')}</p>
         </div>
       </header>
 
@@ -347,6 +357,22 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
           <div className="mb-2 flex items-center justify-between">
             <h4 className="text-xs font-bold text-cyan-100">{localized('Σχηματισμός ένωσης', 'Build a compound')}</h4>
             <span className="text-[10px] text-slate-500">{selectedElements.length} {localized('στοιχεία', 'elements')}</span>
+          </div>
+          <div className="mb-3 rounded-lg border border-cyan-300/15 bg-black/20 p-2.5">
+            <p className="mb-2 text-[10px] font-bold text-cyan-100">{localized('Υπαρκτά διατομικά στοιχεία', 'Common diatomic elements')}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {diatomicMolecules.map((molecule) => (
+                <button
+                  key={molecule.formula}
+                  type="button"
+                  onClick={() => addSuggestedCompound({ formula: molecule.formula, name: lang === 'el' ? molecule.nameEl : molecule.nameEn })}
+                  title={lang === 'el' ? molecule.nameEl : molecule.nameEn}
+                  className="rounded-md border border-white/10 bg-slate-900/80 px-2 py-1 text-[10px] text-slate-200 hover:border-cyan-300/50 hover:text-cyan-100"
+                >
+                  <Plus className="mr-1 inline size-3" />{formulaParts(molecule.formula)}
+                </button>
+              ))}
+            </div>
           </div>
           {selectedElements.length > 0 ? (
             <div className="space-y-2">

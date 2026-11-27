@@ -181,12 +181,29 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [studyWindow, setStudyWindow] = React.useState<Window | null>(null);
   const [studyWindowError, setStudyWindowError] = React.useState('');
   const [studyQuestion, setStudyQuestion] = React.useState('');
+  const [generationElapsedSeconds, setGenerationElapsedSeconds] = React.useState(0);
 
   useEffect(() => {
     const host = document.createElement('div');
     host.className = 'study-content-host box-border w-full min-w-0 max-w-full';
     setStudyHost(host);
   }, []);
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setGenerationElapsedSeconds(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const updateElapsed = () => setGenerationElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    updateElapsed();
+    const timer = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(timer);
+  }, [isGenerating]);
+
+  const elapsedMinutes = Math.floor(generationElapsedSeconds / 60).toString().padStart(2, '0');
+  const elapsedSeconds = (generationElapsedSeconds % 60).toString().padStart(2, '0');
   const parsedMessages = new Map(messages.flatMap((msg) => {
     if (msg.role !== 'model') return [];
     return [[msg.id, { quizData: extractQuizData(msg.text), studyData: extractStudyData(msg.text) }] as const];
@@ -855,7 +872,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               />
             </div>
             <span className="font-semibold text-amber-200">
-              {lang === 'el' ? '🐝 Ai επεξεργάζεται την ύλη — σε μεγάλες αναλύσεις μπορεί να χρειαστούν λίγα λεπτά...' : '🐝 Ai is analyzing your material — large requests may take a few minutes...'}
+              {lang === 'el'
+                ? `Αναμονή απάντησης AI · χρόνος: ${elapsedMinutes}:${elapsedSeconds} (δεν παρέχεται πραγματικό ποσοστό)`
+                : `Waiting for AI response · elapsed: ${elapsedMinutes}:${elapsedSeconds} (live percentage unavailable)`}
             </span>
           </div>
         </div>
