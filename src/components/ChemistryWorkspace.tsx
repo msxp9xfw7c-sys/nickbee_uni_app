@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Atom, FlaskConical, Plus, X } from 'lucide-react';
+import { Atom, FlaskConical, Minus, Plus, X } from 'lucide-react';
 import { PERIODIC_ELEMENTS, PeriodicElement } from '../lib/periodicTable';
 import { AppTheme } from '../types';
 import { OrganicChemistryWorkspace } from './OrganicChemistryWorkspace';
@@ -113,16 +113,14 @@ function greatestCommonDivisor(first: number, second: number): number {
   return a || 1;
 }
 
-function composeBinaryFormula(first: PeriodicElement, firstCharge: number, second: PeriodicElement, secondCharge: number): string | null {
-  if (!firstCharge || !secondCharge || Math.sign(firstCharge) === Math.sign(secondCharge)) return null;
-  const cation = firstCharge > 0 ? first : second;
-  const anion = firstCharge < 0 ? first : second;
-  const cationCharge = firstCharge > 0 ? firstCharge : secondCharge;
-  const anionCharge = firstCharge < 0 ? firstCharge : secondCharge;
-  const divisor = greatestCommonDivisor(cationCharge, anionCharge);
-  const cationCount = Math.abs(anionCharge) / divisor;
-  const anionCount = cationCharge / divisor;
-  return `${cation.symbol}${cationCount > 1 ? cationCount : ''}${anion.symbol}${anionCount > 1 ? anionCount : ''}`;
+function composeFormula(elements: PeriodicElement[], atomCounts: Record<string, number>, charges: number[]): string {
+  const oppositeCharges = (charges[0] > 0 && charges[1] < 0) || (charges[0] < 0 && charges[1] > 0);
+  const formulaElements = elements.length === 2 && oppositeCharges
+    ? (charges[0] > 0 ? elements : [...elements].reverse())
+    : elements;
+  return formulaElements
+    .map((element) => `${element.symbol}${atomCounts[element.symbol] > 1 ? atomCounts[element.symbol] : ''}`)
+    .join('');
 }
 
 function formulaParts(formula: string): React.ReactNode[] {
@@ -148,15 +146,31 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
   const [chemistryBranch, setChemistryBranch] = useState<'reactions' | 'organic'>('reactions');
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
   const [chargeOverrides, setChargeOverrides] = useState<Record<string, number>>({});
+  const [atomCountOverrides, setAtomCountOverrides] = useState<Record<string, number>>({});
   const [reactants, setReactants] = useState<Reactant[]>([]);
   const [search, setSearch] = useState('');
   const [manganeseLessonStep, setManganeseLessonStep] = useState<number | null>(null);
   const elementsBySymbol = useMemo(() => new Map(PERIODIC_ELEMENTS.map((element) => [element.symbol, element])), []);
   const selectedElements = selectedSymbols.map((symbol) => elementsBySymbol.get(symbol)).filter((element): element is PeriodicElement => Boolean(element));
   const currentCharges = selectedElements.map((element) => chargeOverrides[element.symbol] ?? defaultOxidation(element));
-  const builtFormula = selectedElements.length === 2
-    ? composeBinaryFormula(selectedElements[0], currentCharges[0], selectedElements[1], currentCharges[1])
-    : null;
+  const defaultAtomCounts: Record<string, number> = Object.fromEntries(selectedElements.map((element) => [element.symbol, 1]));
+  if (selectedElements.length === 2 && currentCharges[0] && currentCharges[1] && Math.sign(currentCharges[0]) !== Math.sign(currentCharges[1])) {
+    const cationIndex = currentCharges[0] > 0 ? 0 : 1;
+    const anionIndex = 1 - cationIndex;
+    const divisor = greatestCommonDivisor(currentCharges[cationIndex], currentCharges[anionIndex]);
+    defaultAtomCounts[selectedElements[cationIndex].symbol] = Math.abs(currentCharges[anionIndex]) / divisor;
+    defaultAtomCounts[selectedElements[anionIndex].symbol] = Math.abs(currentCharges[cationIndex]) / divisor;
+  }
+  const currentAtomCounts = Object.fromEntries(selectedElements.map((element) => [
+    element.symbol,
+    atomCountOverrides[element.symbol] ?? defaultAtomCounts[element.symbol] ?? 1,
+  ]));
+  const netCharge = selectedElements.reduce(
+    (total, element, index) => total + currentCharges[index] * currentAtomCounts[element.symbol],
+    0,
+  );
+  const builtFormula = selectedElements.length >= 2 ? composeFormula(selectedElements, currentAtomCounts, currentCharges) : null;
+  const canAddCurrentCompound = Boolean(builtFormula) && netCharge === 0;
   const filteredElements = PERIODIC_ELEMENTS.filter((element) =>
     `${element.atomicNumber} ${element.symbol} ${element.name}`.toLowerCase().includes(search.trim().toLowerCase())
   );
@@ -169,11 +183,12 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
   const toggleElement = (symbol: string) => {
     setSelectedSymbols((current) => current.includes(symbol)
       ? current.filter((item) => item !== symbol)
-      : current.length >= 2 ? [current[1], symbol] : [...current, symbol]);
+      : [...current, symbol]);
+    setAtomCountOverrides({});
   };
 
   const addReactant = () => {
-    if (!builtFormula || selectedElements.length !== 2) return;
+    if (!builtFormula || !canAddCurrentCompound) return;
     setReactants((current) => [...current, {
       formula: builtFormula,
       symbols: selectedElements.map((element) => element.symbol),
@@ -262,7 +277,7 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
         <div>
           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-300">{localized('Εργαστήριο σύνθεσης', 'Composition workspace')}</div>
           <h3 className="text-lg font-black text-white">{localized('Χημεία', 'Chemistry')}</h3>
-          <p className="font-sans text-sm leading-6 text-slate-300">{localized('Επίλεξε δύο στοιχεία για να σχηματίσεις έναν ουδέτερο δυαδικό τύπο με βάση συνήθεις αριθμούς οξείδωσης.', 'Choose two elements to form a neutral binary formula using common oxidation states.')}</p>
+          <p className="font-sans text-sm leading-6 text-slate-300">{localized('Επίλεξε δύο ή περισσότερα στοιχεία, ρύθμισε τα άτομα και πρόσθεσε έναν τύπο με συνολικό φορτίο μηδέν.', 'Choose two or more elements, adjust atom counts, and add a formula with zero total charge.')}</p>
         </div>
       </header>
 
@@ -318,7 +333,7 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
         <div className="rounded-xl border border-cyan-400/20 bg-cyan-950/10 p-3">
           <div className="mb-2 flex items-center justify-between">
             <h4 className="text-xs font-bold text-cyan-100">{localized('Σχηματισμός ένωσης', 'Build a compound')}</h4>
-            <span className="text-[10px] text-slate-500">{selectedElements.length}/2 {localized('στοιχεία', 'elements')}</span>
+            <span className="text-[10px] text-slate-500">{selectedElements.length} {localized('στοιχεία', 'elements')}</span>
           </div>
           {selectedElements.length > 0 ? (
             <div className="space-y-2">
@@ -328,23 +343,43 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
                 return (
                   <div key={element.symbol} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/25 px-2.5 py-2">
                     <span className="font-bold" style={{ color: elementColor[element.symbol] || '#e2e8f0' }}>{element.symbol} · {element.name}</span>
-                    <label className="flex items-center gap-2 text-[10px] text-slate-400">
-                      {localized('Αριθμός οξείδωσης', 'Oxidation state')}
-                      <select value={charge} onChange={(event) => setChargeOverrides((current) => ({ ...current, [element.symbol]: Number(event.target.value) }))} className="rounded border border-white/10 bg-slate-900 px-1.5 py-1 text-xs text-white">
-                        {options.map((option) => <option key={option} value={option}>{option > 0 ? `+${option}` : option}</option>)}
-                      </select>
-                    </label>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <label className="flex items-center gap-2 text-[10px] text-slate-400">
+                        {localized('Αριθμός οξείδωσης', 'Oxidation state')}
+                        <select value={charge} onChange={(event) => {
+                          setChargeOverrides((current) => ({ ...current, [element.symbol]: Number(event.target.value) }));
+                          setAtomCountOverrides({});
+                        }} className="rounded border border-white/10 bg-slate-900 px-1.5 py-1 text-xs text-white">
+                          {options.map((option) => <option key={option} value={option}>{option > 0 ? `+${option}` : option}</option>)}
+                        </select>
+                      </label>
+                      <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                        <span>{localized('Άτομα', 'Atoms')}</span>
+                        <button type="button" aria-label={localized(`Μείωση ατόμων ${element.symbol}`, `Decrease ${element.symbol} atoms`)} disabled={currentAtomCounts[element.symbol] <= 1} onClick={() => setAtomCountOverrides((current) => ({ ...current, [element.symbol]: currentAtomCounts[element.symbol] - 1 }))} className="rounded border border-white/10 p-1 text-slate-300 hover:bg-white/10 disabled:opacity-40">
+                          <Minus className="size-3" />
+                        </button>
+                        <span aria-live="polite" className="min-w-4 text-center font-mono text-white">{currentAtomCounts[element.symbol]}</span>
+                        <button type="button" aria-label={localized(`Αύξηση ατόμων ${element.symbol}`, `Increase ${element.symbol} atoms`)} disabled={currentAtomCounts[element.symbol] >= 99} onClick={() => setAtomCountOverrides((current) => ({ ...current, [element.symbol]: currentAtomCounts[element.symbol] + 1 }))} className="rounded border border-white/10 p-1 text-slate-300 hover:bg-white/10 disabled:opacity-40">
+                          <Plus className="size-3" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
-              {selectedElements.length === 2 && (
+              {selectedElements.length >= 2 && (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2">
                   <div>
-                    <span className="block text-[9px] uppercase tracking-wider text-slate-500">{localized('Ουδέτερος εμπειρικός τύπος', 'Neutral empirical formula')}</span>
+                    <span className="block text-[9px] uppercase tracking-wider text-slate-500">{localized('Τύπος από τις επιλογές σου', 'Formula from your selections')}</span>
                     <strong className="font-mono text-2xl text-white">{builtFormula ? formulaParts(builtFormula) : '—'}</strong>
-                    {!builtFormula && <span className="ml-2 text-[10px] text-amber-300">{localized('Χρειάζονται αντίθετα φορτία', 'Opposite charges are needed')}</span>}
+                    <span className={`ml-2 text-[10px] ${netCharge === 0 ? 'text-emerald-300' : 'text-amber-300'}`}>
+                      {netCharge === 0
+                        ? localized('Συνολικό φορτίο: 0', 'Total charge: 0')
+                        : localized(`Συνολικό φορτίο: ${netCharge > 0 ? '+' : ''}${netCharge}`, `Total charge: ${netCharge > 0 ? '+' : ''}${netCharge}`)}
+                    </span>
+                    <p className="mt-1 text-[9px] leading-relaxed text-slate-500">{localized('Το μηδενικό φορτίο δεν επιβεβαιώνει από μόνο του ότι η ένωση υπάρχει.', 'Zero charge alone does not confirm that the compound exists.')}</p>
                   </div>
-                  <button type="button" onClick={addReactant} disabled={!builtFormula} className="inline-flex items-center gap-1 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-2 text-xs font-bold text-cyan-100 hover:bg-cyan-300/20 disabled:opacity-40">
+                  <button type="button" onClick={addReactant} disabled={!canAddCurrentCompound} className="inline-flex items-center gap-1 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-2 text-xs font-bold text-cyan-100 hover:bg-cyan-300/20 disabled:opacity-40">
                     <Plus className="size-3.5" />{localized('Προσθήκη στα αντιδρώντα', 'Add as reactant')}
                   </button>
                 </div>
@@ -372,7 +407,7 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
               )}
             </div>
           ) : (
-            <p className="rounded-lg border border-dashed border-white/10 px-3 py-5 text-center text-xs text-slate-500">{localized('Πάτησε δύο στοιχεία στον πίνακα.', 'Select two elements from the table.')}</p>
+            <p className="rounded-lg border border-dashed border-white/10 px-3 py-5 text-center text-xs text-slate-500">{localized('Πάτησε δύο ή περισσότερα στοιχεία στον πίνακα.', 'Select two or more elements from the table.')}</p>
           )}
         </div>
 
@@ -394,10 +429,10 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
           </div>
           <button
             type="button"
-            onClick={() => requestExplanation(builtFormula && selectedElements.length === 2
+            onClick={() => requestExplanation(canAddCurrentCompound && builtFormula
               ? [...reactants, { formula: builtFormula, symbols: selectedElements.map((element) => element.symbol), charges: [...currentCharges] }]
               : reactants)}
-            disabled={reactants.length + (builtFormula && selectedElements.length === 2 ? 1 : 0) < 2}
+            disabled={reactants.length + (canAddCurrentCompound ? 1 : 0) < 2}
             className="mt-3 w-full rounded-lg border border-violet-300/30 bg-violet-300/10 px-4 py-2.5 text-sm font-bold text-violet-100 transition hover:bg-violet-300/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {localized('Υπολόγισε αντίδραση', 'Calculate reaction')}
