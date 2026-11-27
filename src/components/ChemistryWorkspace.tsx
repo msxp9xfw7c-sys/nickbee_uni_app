@@ -14,6 +14,7 @@ interface Reactant {
   formula: string;
   symbols: string[];
   charges: number[];
+  netCharge: number;
 }
 
 interface SuggestedCompound {
@@ -129,6 +130,17 @@ function formulaParts(formula: string): React.ReactNode[] {
   );
 }
 
+function formulaWithChargeParts(formula: string, charge: number): React.ReactNode[] {
+  return [
+    ...formulaParts(formula),
+    ...(charge === 0 ? [] : [<sup key="charge">{Math.abs(charge) === 1 ? '' : Math.abs(charge)}{charge > 0 ? '+' : '−'}</sup>]),
+  ];
+}
+
+function formulaWithChargeText(formula: string, charge: number): string {
+  return charge === 0 ? formula : `${formula}^${Math.abs(charge) === 1 ? '' : Math.abs(charge)}${charge > 0 ? '+' : '-'}`;
+}
+
 const categoryLabels: Record<string, { el: string; en: string }> = {
   alkali: { el: 'Αλκάλια', en: 'Alkali metals' },
   alkaline: { el: 'Αλκαλικές γαίες', en: 'Alkaline earths' },
@@ -170,7 +182,7 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
     0,
   );
   const builtFormula = selectedElements.length >= 2 ? composeFormula(selectedElements, currentAtomCounts, currentCharges) : null;
-  const canAddCurrentCompound = Boolean(builtFormula) && netCharge === 0;
+  const canAddCurrentCompound = Boolean(builtFormula);
   const filteredElements = PERIODIC_ELEMENTS.filter((element) =>
     `${element.atomicNumber} ${element.symbol} ${element.name}`.toLowerCase().includes(search.trim().toLowerCase())
   );
@@ -193,19 +205,20 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
       formula: builtFormula,
       symbols: selectedElements.map((element) => element.symbol),
       charges: [...currentCharges],
+      netCharge,
     }]);
     setSelectedSymbols([]);
   };
 
   const addSuggestedCompound = (compound: SuggestedCompound) => {
-    setReactants((current) => [...current, { formula: compound.formula, symbols: [], charges: [] }]);
+    setReactants((current) => [...current, { formula: compound.formula, symbols: [], charges: [], netCharge: 0 }]);
   };
 
   const loadManganeseLesson = () => {
     setReactants([
-      { formula: 'KMnO4', symbols: ['K', 'Mn', 'O'], charges: [] },
-      { formula: 'HBr', symbols: ['H', 'Br'], charges: [] },
-      { formula: 'H2SO4', symbols: ['H', 'S', 'O'], charges: [] },
+      { formula: 'KMnO4', symbols: ['K', 'Mn', 'O'], charges: [], netCharge: 0 },
+      { formula: 'HBr', symbols: ['H', 'Br'], charges: [], netCharge: 0 },
+      { formula: 'H2SO4', symbols: ['H', 'S', 'O'], charges: [], netCharge: 0 },
     ]);
     setManganeseLessonStep(0);
   };
@@ -241,10 +254,10 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
 
   const requestExplanation = (selectedReactants: Reactant[]) => {
     if (selectedReactants.length < 2) return;
-    const mixture = selectedReactants.map((item) => item.formula).join(' + ');
+    const mixture = selectedReactants.map((item) => formulaWithChargeText(item.formula, item.netCharge)).join(' + ');
     onExplainReaction(
-      `${CHEMISTRY_REACTION_REQUEST_MARKER}\nΑυτό είναι αίτημα αποκλειστικά για πρόβλεψη χημικής αντίδρασης και Interactive Lab, όχι για quiz ή κάρτες. Μην επαναλάβεις τον δείκτη στο κείμενο της απάντησης. Κάνε πρώτα σαφή θεωρητική πρόβλεψη προϊόντων για τα αντιδρώντα ${mixture} και έπειτα δείξε τη σε διαδραστικό ψηφιακό μοντέλο. Μην απαντήσεις μόνο με γενική περιγραφή. ` +
-      `Επέστρεψε μόνο ένα έγκυρο block \`\`\`lab με JSON αντικείμενο στη ρίζα (όχι μέσα σε πεδίο spec), scene:"reaction", title, description, equation, particles:[], species και steps. Το equation να είναι η πλήρης ισοσταθμισμένη αντίδραση όταν η πρόβλεψη είναι τεκμηριωμένη. Στο species να υπάρχουν όλα τα αντιδρώντα και τα προϊόντα με formula, name και role ("reactant" ή "product"), και όπου υπάρχουν τεκμηριωμένες δομές, structure:{atoms:[{element,x,y}],bonds:[{from,to,order}]}. Τα x,y είναι 0–100 και τα from/to δείκτες atoms· order 1, 2 ή 3. ` +
+      `${CHEMISTRY_REACTION_REQUEST_MARKER}\nΑυτό είναι αίτημα αποκλειστικά για πρόβλεψη χημικής αντίδρασης και Interactive Lab, όχι για quiz ή κάρτες. Μην επαναλάβεις τον δείκτη στο κείμενο της απάντησης. Κάνε πρώτα σαφή θεωρητική πρόβλεψη προϊόντων για τα αντιδρώντα ${mixture}· οι εκθέτες +/− δηλώνουν το φορτίο των ιόντων. Λάβε υπόψη τα φορτία και διατήρησε τόσο τα άτομα όσο και το συνολικό φορτίο στην ισοστάθμιση. Αν κάποιος δοσμένος ιοντικός τύπος δεν είναι τεκμηριωμένο/σταθερό είδος, επισήμανέ το και μην επινοήσεις αντίδραση. Έπειτα δείξε την τεκμηριωμένη πρόβλεψη σε διαδραστικό ψηφιακό μοντέλο. Μην απαντήσεις μόνο με γενική περιγραφή. ` +
+      `Επέστρεψε μόνο ένα έγκυρο block \`\`\`lab με JSON αντικείμενο στη ρίζα (όχι μέσα σε πεδίο spec), scene:"reaction", title, description, equation, particles:[], species και steps. Το equation να είναι η πλήρης ισοσταθμισμένη αντίδραση όταν η πρόβλεψη είναι τεκμηριωμένη. Στο species να υπάρχουν όλα τα αντιδρώντα και τα προϊόντα με formula (μαζί με το φορτίο για ιόντα), name και role ("reactant" ή "product"), και όπου υπάρχουν τεκμηριωμένες δομές, structure:{atoms:[{element,x,y}],bonds:[{from,to,order}]}. Τα x,y είναι 0–100 και τα from/to δείκτες atoms· order 1, 2 ή 3. ` +
       `Δώσε 5–8 βήματα στα ελληνικά με title, explanation, focus και molecularChanges. Σε κάθε molecularChanges χρησιμοποίησε action ("break", "form" ή "transfer"), fromSpecies, προαιρετικό toSpecies, element και, όταν είναι γνωστά από τα structures, fromBond:[i,j] ή toBond:[i,j]. Αυτά οδηγούν τις κινούμενες επισημάνσεις των δεσμών και τη μεταφορά ατόμων. Το focus να αναφέρει ακριβώς τους τύπους ή τα ονόματα των ειδών που πρέπει να φωτιστούν σε αυτό το βήμα. ` +
       `Η περιοχή Ψηφιακό μοντέλο πρέπει να δείχνει μόνο τα μοριακά σχήματα· η συνολική αντίδραση υπάρχει χωριστά ως μικρή λεζάντα. Μην επινοήσεις προϊόντα, ατομικές συνδέσεις ή στάδια. Αν δεν υπάρχει μοναδική αξιόπιστη πρόβλεψη χωρίς πρόσθετες συνθήκες, εξήγησε το καθαρά στο description και μην παρουσιάσεις εικασία ως βέβαιο προϊόν. ` +
       `Αυτό είναι αποκλειστικά θεωρητική εξήγηση, όχι πείραμα: μην αναφέρεις ποσότητες, αναλογίες, πρακτικά βήματα ανάμειξης ή οδηγίες παρασκευής, ιδίως για τοξικά/οξειδωτικά αντιδραστήρια.`
@@ -371,13 +384,13 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2">
                   <div>
                     <span className="block text-[9px] uppercase tracking-wider text-slate-500">{localized('Τύπος από τις επιλογές σου', 'Formula from your selections')}</span>
-                    <strong className="font-mono text-2xl text-white">{builtFormula ? formulaParts(builtFormula) : '—'}</strong>
-                    <span className={`ml-2 text-[10px] ${netCharge === 0 ? 'text-emerald-300' : 'text-amber-300'}`}>
+                    <strong className="font-mono text-2xl text-white">{builtFormula ? formulaWithChargeParts(builtFormula, netCharge) : '—'}</strong>
+                    <span className={`ml-2 text-[10px] ${netCharge === 0 ? 'text-emerald-300' : 'text-cyan-300'}`}>
                       {netCharge === 0
-                        ? localized('Συνολικό φορτίο: 0', 'Total charge: 0')
-                        : localized(`Συνολικό φορτίο: ${netCharge > 0 ? '+' : ''}${netCharge}`, `Total charge: ${netCharge > 0 ? '+' : ''}${netCharge}`)}
+                        ? localized('Ουδέτερο μόριο', 'Neutral molecule')
+                        : localized(`Ιόν · φορτίο ${netCharge > 0 ? '+' : ''}${netCharge}`, `Ion · charge ${netCharge > 0 ? '+' : ''}${netCharge}`)}
                     </span>
-                    <p className="mt-1 text-[9px] leading-relaxed text-slate-500">{localized('Το μηδενικό φορτίο δεν επιβεβαιώνει από μόνο του ότι η ένωση υπάρχει.', 'Zero charge alone does not confirm that the compound exists.')}</p>
+                    <p className="mt-1 text-[9px] leading-relaxed text-slate-500">{localized('Μπορείς να προσθέσεις και ιόντα. Ο τύπος/φορτίο δεν επιβεβαιώνει από μόνο του ότι το είδος υπάρχει ή αντιδρά.', 'Ions can also be added. Formula/charge alone does not confirm that a species exists or reacts.')}</p>
                   </div>
                   <button type="button" onClick={addReactant} disabled={!canAddCurrentCompound} className="inline-flex items-center gap-1 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-2 text-xs font-bold text-cyan-100 hover:bg-cyan-300/20 disabled:opacity-40">
                     <Plus className="size-3.5" />{localized('Προσθήκη στα αντιδρώντα', 'Add as reactant')}
@@ -419,7 +432,7 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
           <div className="grid grid-cols-2 gap-2">
             {reactants.map((reactant, index) => (
               <div key={`${reactant.formula}-${index}`} className="flex items-center justify-between gap-2 rounded-lg border border-violet-300/20 bg-black/25 px-2.5 py-2">
-                <span><span className="block text-[9px] text-slate-500">{localized('Αντιδρών', 'Reactant')} {index + 1}</span><strong className="font-mono text-lg text-white">{formulaParts(reactant.formula)}</strong></span>
+                <span><span className="block text-[9px] text-slate-500">{localized('Αντιδρών', 'Reactant')} {index + 1}</span><strong className="font-mono text-lg text-white">{formulaWithChargeParts(reactant.formula, reactant.netCharge)}</strong></span>
                 <button type="button" onClick={() => setReactants((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={localized('Αφαίρεση αντιδρώντος', 'Remove reactant')} className="rounded p-1 text-slate-500 hover:bg-rose-400/10 hover:text-rose-300"><X className="size-3.5" /></button>
               </div>
             ))}
@@ -430,7 +443,7 @@ export const ChemistryWorkspace: React.FC<ChemistryWorkspaceProps> = ({ currentT
           <button
             type="button"
             onClick={() => requestExplanation(canAddCurrentCompound && builtFormula
-              ? [...reactants, { formula: builtFormula, symbols: selectedElements.map((element) => element.symbol), charges: [...currentCharges] }]
+              ? [...reactants, { formula: builtFormula, symbols: selectedElements.map((element) => element.symbol), charges: [...currentCharges], netCharge }]
               : reactants)}
             disabled={reactants.length + (canAddCurrentCompound ? 1 : 0) < 2}
             className="mt-3 w-full rounded-lg border border-violet-300/30 bg-violet-300/10 px-4 py-2.5 text-sm font-bold text-violet-100 transition hover:bg-violet-300/20 disabled:cursor-not-allowed disabled:opacity-40"
